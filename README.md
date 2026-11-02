@@ -6,6 +6,30 @@ Everyone has 2 parents, 4 grandparents, 8 great-grandparents, so the number of p
 
 No build step, no dependencies. It is a single `index.html` file.
 
+## Pedigree collapse in one picture
+
+Arrows point from a person to their parents. When two lines of your family lead back to the same person, that one person fills two places in your tree.
+
+```mermaid
+flowchart TB
+    You --> Father
+    You --> Mother
+    Father --> PGF["Paternal grandfather"]
+    Father --> PGM["Paternal grandmother"]
+    Mother --> MGF["Maternal grandfather"]
+    Mother --> MGM["Maternal grandmother"]
+    PGM --> Shared["Shared ancestor<br/>fills two places"]
+    MGF --> Shared
+    PGF --> PGFP["Parents of paternal<br/>grandfather"]
+    MGM --> MGMP["Parents of maternal<br/>grandmother"]
+    Shared --> SP["Their parents<br/>also count twice"]
+
+    classDef shared fill:#fde8a8,stroke:#b07a0a,color:#222
+    class Shared,SP shared
+```
+
+In the app this shows up as a gold outline on the fan, and as the gap between the "places in your tree" line and the "estimated different ancestors" line on the chart.
+
 ## Features
 
 - **Radial fan chart** with one ring per generation. Father's side and mother's side are colored differently. Hover a segment to see who it is, for example "Your father's mother's father".
@@ -44,6 +68,19 @@ Notes on GEDCOM support:
 - Files are read as UTF-8.
 
 ## How the estimate works
+
+```mermaid
+flowchart LR
+    A["Birth year, target year,<br/>years per generation"] --> B["Generations back<br/>n = round((birth - target) / gen)"]
+    B --> C["Places in your tree<br/>T = 2^n"]
+    A --> D["People in your pool<br/>N = regional population<br/>x marriage reach"]
+    R["Regional population table"] --> D
+    C --> E["Different ancestors<br/>N x (1 - e^(-T/N))"]
+    D --> E
+    G["GEDCOM file (optional)"] -.-> K["Known ancestors<br/>per generation"]
+    E --> H["Fan chart, collapse chart,<br/>generation table"]
+    K --> H
+```
 
 For a given generation `k`, the page calculates:
 
