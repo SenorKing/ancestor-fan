@@ -1,0 +1,17 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+
+# Personal family tree files (keep private, do not commit)
+*.ged
+*.gedcom
+!sample/sample-tree.ged
+
+# Node and Python tooling, if you add any later
+node_modules/
+__pycache__/
+.venv/

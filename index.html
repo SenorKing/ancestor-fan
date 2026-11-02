@@ -1,0 +1,878 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{color-scheme:light}
+body{margin:0}
+[hidden]{display:none!important}
+img{max-width:100%}
+</style>
+<title>Ancestor Fan</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=IBM+Plex+Mono:wght@400;500&family=Public+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: controls + readout on the left, radial pedigree fan on the right, then the collapse chart and a generation ledger below. */
+:root {
+  --bg: #EDF1EC;
+  --panel: #F7F9F6;
+  --fg: #16251C;
+  --muted: #5A6B60;
+  --line: #D2DBD1;
+  --pat: #2E7D4F;
+  --mat: #C2416F;
+  --warm: #B07A0A;
+  --accent: #2E7D4F;
+  --r0: #3B6EA8; --r1: #D08A1E; --r2: #7A5BB5; --r3: #C0503A; --r4: #1F8F8A; --r5: #7D8A2E;
+  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+  --font-body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E1811; --panel: #15221A; --fg: #E6EFE8; --muted: #94A99A; --line: #26382C;
+    --pat: #5FD08A; --mat: #F27AA5; --warm: #E9B949; --accent: #5FD08A;
+    --r0: #6FA3E0; --r1: #F0B04A; --r2: #A68BE0; --r3: #EA7F69; --r4: #4DC6BF; --r5: #B4C25A;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0E1811; --panel: #15221A; --fg: #E6EFE8; --muted: #94A99A; --line: #26382C;
+  --pat: #5FD08A; --mat: #F27AA5; --warm: #E9B949; --accent: #5FD08A;
+  --r0: #6FA3E0; --r1: #F0B04A; --r2: #A68BE0; --r3: #EA7F69; --r4: #4DC6BF; --r5: #B4C25A;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+  padding-block: 32px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+h1 { font-family: var(--font-display); font-weight: 600; font-size: clamp(2rem, 5vw, 3.1rem); line-height: 1.05; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+.lede { color: var(--muted); max-width: 60ch; margin: 10px 0 0; }
+.eyebrow { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 28px; align-items: start; }
+.left { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.controls { display: flex; flex-direction: column; gap: 18px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; }
+.field { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.field label.row, .field .lab { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 13px; font-weight: 600; }
+.field .val { font-family: var(--font-mono); font-weight: 500; color: var(--accent); font-size: 14px; }
+input[type="number"] { font: inherit; font-family: var(--font-mono); background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; width: 8ch; }
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+input:focus-visible, button:focus-visible, .seg input:focus-visible + span, .chip input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.timerow { display: flex; gap: 10px; align-items: center; }
+.timerow input[type="range"] { flex: 1; min-width: 0; }
+button.play { font: inherit; font-weight: 600; font-size: 13px; color: var(--bg); background: var(--accent); border: 0; border-radius: 6px; padding: 7px 12px; cursor: pointer; white-space: nowrap; }
+button.play:hover { filter: brightness(1.08); }
+.seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.seg label { cursor: pointer; font-weight: 500; }
+.seg input, .chip input { position: absolute; opacity: 0; pointer-events: none; }
+.seg span { display: block; text-align: center; border: 1px solid var(--line); border-radius: 6px; padding: 7px 4px; font-size: 12.5px; background: var(--bg); line-height: 1.25; }
+.seg input:checked + span { border-color: var(--accent); color: var(--accent); background: var(--panel); box-shadow: inset 0 0 0 1px var(--accent); }
+.chips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.chip { cursor: pointer; position: relative; }
+.chip span { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px; font-size: 12.5px; background: var(--bg); opacity: 0.6; min-width: 0; }
+.chip span b { font-weight: 500; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip span em { font-style: normal; font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); }
+.chip .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.chip input:checked + span { opacity: 1; border-color: var(--fg); background: var(--panel); }
+.regionbar { display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: var(--line); }
+.regionbar i { display: block; height: 100%; transition: opacity 0.2s; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.filerow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; position: relative; }
+.filebtn, button.ghost { font: inherit; font-size: 13px; font-weight: 600; border-radius: 6px; padding: 7px 12px; cursor: pointer; border: 1px solid var(--accent); background: var(--accent); color: var(--bg); }
+button.ghost { background: transparent; color: var(--accent); }
+.sr:focus-visible + .filebtn { outline: 2px solid var(--accent); outline-offset: 2px; }
+#treeDetail { display: flex; flex-direction: column; gap: 6px; }
+input.wide { width: 100%; font: inherit; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; }
+table.nofile .cf { display: none; }
+.hint { color: var(--muted); font-size: 12.5px; margin: 0; }
+.readout { display: flex; flex-direction: column; gap: 14px; }
+.figs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.fig .num { font-family: var(--font-display); font-size: clamp(1.4rem, 3.4vw, 2.1rem); font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.fig .num.unique { color: var(--accent); }
+.fig .num.slots { color: var(--warm); }
+.fig .cap { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.story { margin: 0; font-size: 15.5px; max-width: 58ch; }
+.story b { font-weight: 600; }
+.fanbox { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.fanbox canvas { width: 100%; aspect-ratio: 1 / 1; max-width: 100%; display: block; cursor: crosshair; }
+.key { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--muted); }
+.key i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.card h2 { font-family: var(--font-display); font-weight: 600; font-size: 1.35rem; margin: 0; }
+.card canvas { width: 100%; height: 300px; display: block; touch-action: pan-y; cursor: col-resize; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12.5px; }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.legend i { display: inline-block; width: 18px; height: 0; border-top: 3px solid; }
+.legend i.dash { border-top-style: dashed; }
+.ledger { max-height: 300px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: 13px; min-width: 520px; }
+th, td { text-align: right; padding: 7px 12px; white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+thead th { position: sticky; top: 0; background: var(--panel); color: var(--muted); font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 500; border-bottom: 1px solid var(--line); }
+tbody td { border-bottom: 1px solid var(--line); font-family: var(--font-mono); }
+tbody tr { cursor: pointer; }
+tbody tr:hover td { background: var(--panel); }
+tbody tr.sel td { background: var(--panel); color: var(--accent); font-weight: 500; }
+.bar { display: inline-block; width: 70px; height: 7px; background: var(--line); border-radius: 4px; vertical-align: middle; margin-right: 8px; overflow: hidden; }
+.bar b { display: block; height: 100%; background: var(--accent); }
+.foot { color: var(--muted); font-size: 12.5px; max-width: 76ch; margin: 0; }
+#tip { position: fixed; left: 0; top: 0; z-index: 50; pointer-events: none; background: var(--panel); color: var(--fg); border: 1px solid var(--fg); border-radius: 8px; padding: 9px 11px; font-size: 12.5px; line-height: 1.4; max-width: 260px; box-shadow: 0 6px 20px rgba(0,0,0,0.18); }
+#tip b { font-weight: 600; }
+#tip .t { font-family: var(--font-display); font-size: 15px; font-weight: 600; margin-bottom: 3px; }
+#tip .m { color: var(--muted); }
+#tip .rw { display: flex; justify-content: space-between; gap: 14px; font-variant-numeric: tabular-nums; }
+#tip .rw span:last-child { font-family: var(--font-mono); }
+#tip .sw { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+#tip hr { border: 0; border-top: 1px solid var(--line); margin: 6px 0; }
+@media (max-width: 820px) { .top { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 480px) { .figs { grid-template-columns: minmax(0, 1fr); gap: 10px; } .card canvas { height: 240px; } .chips { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Pedigree explorer</div>
+    <h1>Ancestor Fan</h1>
+    <p class="lede">Every person has two parents, four grandparents, eight great-grandparents. Pick a year and see how many ancestors that adds up to, and why the real number is smaller.</p>
+  </header>
+
+  <section class="top">
+    <div class="left">
+      <div class="controls">
+        <div class="field">
+          <div class="lab">Your family tree <span class="val" id="treeStatus"></span></div>
+          <div class="filerow">
+            <input id="gedfile" class="sr" type="file" accept=".ged,.gedcom,text/plain">
+            <label class="filebtn" for="gedfile">Choose GEDCOM file</label>
+            <button class="ghost" id="sample" type="button">Try a sample</button>
+            <button class="ghost" id="clearTree" type="button" hidden>Remove</button>
+          </div>
+          <div id="treeDetail" hidden>
+            <label class="row" for="rootpick">Start from</label>
+            <input id="rootpick" class="wide" list="people" autocomplete="off" placeholder="Type a name">
+            <datalist id="people"></datalist>
+          </div>
+          <p class="hint" id="treeSummary" hidden></p>
+          <p class="hint" id="treeHint"></p>
+        </div>
+        <div class="field">
+          <label class="row" for="birth">Your birth year <input id="birth" type="number" value="2000" min="1000" max="2026"></label>
+        </div>
+        <div class="field">
+          <label class="row" for="target">Go back to year <span class="val" id="targetVal"></span></label>
+          <div class="timerow">
+            <input id="target" type="range" min="1" max="1971" value="1200" step="1">
+            <button class="play" id="play" type="button">Travel back</button>
+          </div>
+        </div>
+        <div class="field">
+          <label class="row" for="gen">Years per generation <span class="val" id="genVal"></span></label>
+          <input id="gen" type="range" min="20" max="35" value="29" step="1">
+        </div>
+        <div class="field">
+          <div class="lab">Where your ancestors lived <span class="val" id="worldVal"></span></div>
+          <div class="chips" id="chips"></div>
+          <div class="regionbar" id="regionbar" aria-hidden="true"></div>
+          <p class="hint" id="regionHint">The bar shows who was alive in each region at the year you picked.</p>
+        </div>
+        <div class="field">
+          <div class="lab">How widely did people marry within those regions?</div>
+          <div class="seg" role="radiogroup" aria-label="Marriage reach">
+            <label><input type="radio" name="mix" value="0.02"><span>Nearby<br>2% of region</span></label>
+            <label><input type="radio" name="mix" value="0.15" checked><span>Wider<br>15% of region</span></label>
+            <label><input type="radio" name="mix" value="0.5"><span>Region-wide<br>50% of region</span></label>
+          </div>
+          <p class="hint">A smaller pool means more shared ancestors and a smaller true count.</p>
+        </div>
+      </div>
+
+      <div class="readout">
+        <div class="figs">
+          <div class="fig"><div class="num" id="figGen"></div><div class="cap">generations back</div></div>
+          <div class="fig"><div class="num slots" id="figSlots"></div><div class="cap">places in your family tree</div></div>
+          <div class="fig"><div class="num unique" id="figUnique"></div><div class="cap">different people, roughly</div></div>
+        </div>
+        <p class="story" id="story"></p>
+      </div>
+    </div>
+
+    <div class="fanbox">
+      <canvas id="fan" role="img" aria-label="Radial fan chart of your ancestors, one ring per generation. Hover a segment for details."></canvas>
+      <div class="key">
+        <span><i style="background:var(--pat)"></i>Father's side</span>
+        <span><i style="background:var(--mat)"></i>Mother's side</span>
+        <span id="fanNote"></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Where the tree runs out of people</h2>
+    <p class="hint" style="margin-top:-6px">The vertical axis is logarithmic: each gridline is a thousand times the one below it. Hover or drag across the chart to move through the years.</p>
+    <canvas id="chart" role="img" aria-label="Line chart of theoretical ancestors, population pool and estimated distinct ancestors by year"></canvas>
+    <div class="legend">
+      <span><i style="border-color:var(--warm)"></i>Places in your tree (2 to the n)</span>
+      <span><i class="dash" style="border-color:var(--muted)"></i>People alive in your pool</span>
+      <span><i style="border-color:var(--accent)"></i>Estimated different ancestors</span>
+      <span id="legFile" hidden><i style="border-color:var(--mat)"></i>Ancestors named in your file</span>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Generation by generation</h2>
+    <p class="hint" style="margin-top:-6px">Select a row to jump to that generation.</p>
+    <div class="ledger" tabindex="0" aria-label="Table of ancestors by generation">
+      <table id="tbl" class="nofile">
+        <thead><tr><th>Generation</th><th>About year</th><th>Places</th><th>Different people</th><th>Unique</th><th class="cf">In your file</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <p class="foot">Regional populations are rounded from broad published estimates (the kind compiled by McEvedy and Jones, the HYDE database and the UN) and are uncertain, often by a quarter or more before 1800. The estimate treats each place in your tree as a random draw from the people alive in your chosen pool that generation, so repeats appear once places outnumber people. Real families are less random than that. Use it for scale, not for genealogy records. A family tree file you load is read inside your browser and is not uploaded anywhere.</p>
+</div>
+<div id="tip" role="tooltip" hidden></div>
+
+<script>
+(function () {
+  // Regional population in millions. Years: 1, 500, 1000, 1200, 1400, 1500, 1600, 1700, 1800, 1900, 1950, 2000, 2025.
+  var YEARS = [1, 500, 1000, 1200, 1400, 1500, 1600, 1700, 1800, 1900, 1950, 2000, 2025];
+  var REG = [
+    { id: 'ea', name: 'East Asia',               v: [65, 55, 72, 115, 80, 125, 175, 190, 340, 460, 670, 1480, 1600] },
+    { id: 'sa', name: 'South & Southeast Asia',  v: [75, 70, 95, 110, 105, 135, 170, 200, 245, 370, 660, 1890, 2700] },
+    { id: 'eu', name: 'Europe & Russia',         v: [38, 30, 40, 70, 62, 85, 105, 125, 190, 390, 550, 730, 745] },
+    { id: 'me', name: 'Middle East & N. Africa', v: [28, 25, 30, 35, 30, 36, 42, 45, 50, 90, 150, 380, 600] },
+    { id: 'af', name: 'Sub-Saharan Africa',      v: [18, 22, 30, 40, 42, 50, 55, 65, 80, 110, 180, 670, 1250] },
+    { id: 'am', name: 'Americas & Oceania',      v: [12, 14, 22, 38, 45, 48, 14, 13, 30, 160, 350, 860, 1050] }
+  ];
+  function popOf(r, y) {
+    var v = r.v;
+    if (y <= YEARS[0]) return v[0];
+    for (var i = 1; i < YEARS.length; i++) {
+      if (y <= YEARS[i]) {
+        var t = (y - YEARS[i-1]) / (YEARS[i] - YEARS[i-1]);
+        return Math.exp(Math.log(v[i-1]) + t * (Math.log(v[i]) - Math.log(v[i-1])));
+      }
+    }
+    return v[v.length - 1];
+  }
+
+  var $ = function (id) { return document.getElementById(id); };
+  var birthEl = $('birth'), targetEl = $('target'), genEl = $('gen'), tip = $('tip');
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var S = { birth: 2000, target: 1200, gen: 29, reach: 0.15, on: { ea: 1, sa: 1, eu: 1, me: 1, af: 1, am: 1 } };
+
+  function nGens() { return Math.max(1, Math.round((S.birth - S.target) / S.gen)); }
+  function yearAt(k) { return S.birth - k * S.gen; }
+  function slots(k) { return Math.pow(2, k); }
+  function worldAt(y) { return REG.reduce(function (s, r) { return s + popOf(r, y); }, 0); }
+  function selectedAt(y) { return REG.reduce(function (s, r) { return s + (S.on[r.id] ? popOf(r, y) : 0); }, 0); }
+  function poolAt(y) { return selectedAt(y) * 1e6 * S.reach; }
+  function distinct(T, N) { return Math.min(-Math.expm1(-T / N) * N, T); }
+
+  function fmt(x) {
+    if (x < 1e4) return Math.round(x).toLocaleString('en-US');
+    if (x < 1e6) return (x / 1e3).toFixed(x < 1e5 ? 1 : 0).replace(/\.0$/, '') + ' thousand';
+    if (x < 1e9) return (x / 1e6).toFixed(x < 1e8 ? 1 : 0).replace(/\.0$/, '') + ' million';
+    if (x < 1e12) return (x / 1e9).toFixed(x < 1e11 ? 1 : 0).replace(/\.0$/, '') + ' billion';
+    if (x < 1e15) return (x / 1e12).toFixed(1).replace(/\.0$/, '') + ' trillion';
+    var e = Math.floor(Math.log10(x));
+    return (x / Math.pow(10, e)).toFixed(1) + '×10^' + e;
+  }
+  function fmtShort(x) {
+    if (x < 1e3) return String(Math.round(x));
+    if (x < 1e6) return (x / 1e3).toFixed(1).replace(/\.0$/, '') + 'K';
+    if (x < 1e9) return (x / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+    if (x < 1e12) return (x / 1e9).toFixed(1).replace(/\.0$/, '') + 'B';
+    return (x / 1e12).toFixed(1).replace(/\.0$/, '') + 'T';
+  }
+  function fmtPop(m) {
+    if (m >= 1000) return (m / 1000).toFixed(1) + 'B';
+    if (m >= 10) return Math.round(m) + 'M';
+    return m.toFixed(1) + 'M';
+  }
+  function ordinal(n) { var s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); }
+  function cssv(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+  function setupCanvas(c, w, h) {
+    var dpr = window.devicePixelRatio || 1;
+    c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+    var ctx = c.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return ctx;
+  }
+  function hash(i, k) { var x = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453; return x - Math.floor(x); }
+  function clamp(x, a, b) { return Math.max(a, Math.min(b, x)); }
+
+  function relName(k, i) {
+    var f = (i & 1) === 0;
+    if (k === 1) return f ? 'Father' : 'Mother';
+    if (k === 2) return f ? 'Grandfather' : 'Grandmother';
+    if (k === 3) return f ? 'Great-grandfather' : 'Great-grandmother';
+    return ordinal(k - 2) + (f ? ' great-grandfather' : ' great-grandmother');
+  }
+  function pathName(k, i) {
+    var parts = [];
+    for (var j = k - 1; j >= 0; j--) parts.push((i >> j) & 1 ? 'mother' : 'father');
+    return 'Your ' + parts.map(function (p, idx) { return idx < parts.length - 1 ? p + "'s" : p; }).join(' ');
+  }
+  function selectedNames() {
+    var names = REG.filter(function (r) { return S.on[r.id]; }).map(function (r) { return r.name; });
+    if (names.length === REG.length) return 'the world';
+    if (names.length > 3) return names.length + ' regions';
+    return names.join(' + ');
+  }
+
+  /* ---------- Family tree file (GEDCOM) ---------- */
+  var FILE = null, TREE = null;
+  var HINT = 'Export a GEDCOM (.ged) file from Ancestry, FamilySearch, MyHeritage or similar. It is read in your browser and goes nowhere else.';
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
+  }
+  function parseGedcom(text) {
+    var P = {}, F = {}, cur = null, kind = '', sub = '';
+    text.replace(/^﻿/, '').split(/\r\n|\n|\r/).forEach(function (line) {
+      var m = /^\s*(\d+)\s+(?:(@[^@]+@)\s+)?(\S+)(?:\s+(.*))?$/.exec(line);
+      if (!m) return;
+      var lvl = +m[1], xref = m[2], tag = m[3].toUpperCase(), val = (m[4] || '').trim();
+      if (lvl === 0) {
+        cur = null; kind = ''; sub = '';
+        if (tag === 'INDI' && xref) { cur = P[xref] = { id: xref, name: '', birth: null, famc: null }; kind = 'I'; }
+        else if (tag === 'FAM' && xref) { cur = F[xref] = { id: xref, h: null, w: null, c: [] }; kind = 'F'; }
+        return;
+      }
+      if (!cur) return;
+      if (lvl === 1) {
+        sub = tag;
+        if (kind === 'I') {
+          if (tag === 'NAME' && !cur.name) cur.name = val.replace(/\//g, ' ').replace(/\s+/g, ' ').trim();
+          else if (tag === 'FAMC' && !cur.famc) cur.famc = val;
+        } else if (kind === 'F') {
+          if (tag === 'HUSB') cur.h = val; else if (tag === 'WIFE') cur.w = val; else if (tag === 'CHIL') cur.c.push(val);
+        }
+      } else if (lvl === 2 && kind === 'I' && sub === 'BIRT' && tag === 'DATE' && cur.birth === null) {
+        var ym = /\b(\d{3,4})\b/.exec(val); if (ym) cur.birth = +ym[1];
+      }
+    });
+    Object.keys(F).forEach(function (fid) {
+      F[fid].c.forEach(function (cid) { if (P[cid] && !P[cid].famc) P[cid].famc = fid; });
+    });
+    Object.keys(P).forEach(function (id) { if (!P[id].name) P[id].name = 'Unnamed'; });
+    return { P: P, F: F };
+  }
+  function parentsOf(P, F, id) {
+    var p = P[id]; if (!p || !p.famc) return [null, null];
+    var f = F[p.famc]; if (!f) return [null, null];
+    return [f.h && P[f.h] ? f.h : null, f.w && P[f.w] ? f.w : null];
+  }
+  function pickRoot(P, F) {
+    var memo = {}, vis = {};
+    function depth(id) {
+      if (memo[id] !== undefined) return memo[id];
+      if (vis[id]) return 0;
+      vis[id] = 1;
+      var pr = parentsOf(P, F, id), d = 0;
+      if (pr[0] || pr[1]) d = 1 + Math.max(pr[0] ? depth(pr[0]) : 0, pr[1] ? depth(pr[1]) : 0);
+      vis[id] = 0; memo[id] = d; return d;
+    }
+    var best = null, bd = -1;
+    Object.keys(P).forEach(function (id) {
+      var d = depth(id);
+      if (d > bd || (d === bd && (P[id].birth || 0) > (P[best].birth || 0))) { best = id; bd = d; }
+    });
+    return best;
+  }
+  function medianGap(P, F) {
+    var gaps = [];
+    Object.keys(P).forEach(function (id) {
+      var c = P[id]; if (!c.birth) return;
+      parentsOf(P, F, id).forEach(function (pid) {
+        if (pid && P[pid].birth) { var g = c.birth - P[pid].birth; if (g >= 15 && g <= 50) gaps.push(g); }
+      });
+    });
+    if (gaps.length < 3) return null;
+    gaps.sort(function (a, b) { return a - b; });
+    return Math.round(gaps[Math.floor(gaps.length / 2)]);
+  }
+  function buildFile(P, F, rootId, title) {
+    var slotsK = [[rootId]], dup = {}, k, i;
+    for (k = 1; k <= 8; k++) {
+      var prev = slotsK[k - 1], arr = new Array(prev.length * 2);
+      for (i = 0; i < arr.length; i++) arr[i] = null;
+      for (i = 0; i < prev.length; i++) {
+        if (prev[i]) { var pr = parentsOf(P, F, prev[i]); arr[2 * i] = pr[0]; arr[2 * i + 1] = pr[1]; }
+      }
+      slotsK[k] = arr;
+      arr.forEach(function (id) { if (id) dup[id] = (dup[id] || 0) + 1; });
+    }
+    var cur = {}, perGen = [{ known: 1, distinct: 1 }], total = {};
+    cur[rootId] = 1;
+    for (k = 1; k <= 60; k++) {
+      var next = {}, known = 0, cnt = 0;
+      Object.keys(cur).forEach(function (id) {
+        parentsOf(P, F, id).forEach(function (pid) {
+          if (pid) { if (!next[pid]) cnt++; next[pid] = (next[pid] || 0) + cur[id]; known += cur[id]; total[pid] = (total[pid] || 0) + cur[id]; }
+        });
+      });
+      if (!cnt) break;
+      perGen[k] = { known: known, distinct: cnt }; cur = next;
+    }
+    var all = Object.keys(total), shared = all.filter(function (id) { return total[id] > 1; }).length;
+    var root = P[rootId];
+    return {
+      title: title, rootId: rootId, slots: slotsK, dup: dup, perGen: perGen, depth: perGen.length - 1,
+      allCount: all.length, dupCount: shared, nPeople: Object.keys(P).length, gap: medianGap(P, F),
+      rootName: root.name, rootBirth: root.birth
+    };
+  }
+  function sampleGedcom() {
+    var seed = 12345;
+    function rnd() { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; }
+    function pick(a) { return a[Math.floor(rnd() * a.length)]; }
+    var GM = ['James', 'Henry', 'Arthur', 'Louis', 'Samuel', 'Peter', 'Thomas', 'Walter', 'Joseph', 'Edward', 'Hugo', 'Felix', 'Oscar', 'Victor', 'Carl', 'Daniel'];
+    var GF = ['Mary', 'Anna', 'Clara', 'Helen', 'Edith', 'Rose', 'Alice', 'Maria', 'Julia', 'Ruth', 'Nora', 'Ida', 'Lena', 'Grace', 'Elsa', 'Vera'];
+    var SN = ['Morgan', 'Reyes', 'Hale', 'Okafor', 'Lindqvist', 'Moreau', 'Tanaka', 'Bell', 'Novak', 'Costa', 'Ward', 'Haddad'];
+    var people = [], fams = [], n = 0, nf = 0;
+    function mk(sex, birth, sur) {
+      n++; var p = { id: '@I' + n + '@', sex: sex, birth: birth, sur: sur, given: pick(sex === 'M' ? GM : GF), famc: null };
+      people.push(p); return p;
+    }
+    var root = mk('M', 2000, 'Morgan'); root.given = 'Alex';
+    var gen = [root];
+    for (var k = 0; k < 11 && gen.length; k++) {
+      var next = [], here = [];
+      gen.forEach(function (p) {
+        var missing = k < 2 ? 0 : Math.min(0.55, 0.07 * (k - 1));
+        if (rnd() < missing) return;
+        if (k >= 4 && here.length && rnd() < 0.07) { var sib = here[Math.floor(rnd() * here.length)]; p.famc = sib.id; sib.kids.push(p.id); return; }
+        nf++;
+        var f = { id: '@F' + nf + '@', kids: [p.id] }, gap = 29 + Math.round((rnd() - 0.5) * 8);
+        var fa = mk('M', p.birth - gap, p.sur), mo = mk('F', p.birth - gap + Math.round((rnd() - 0.5) * 6), pick(SN));
+        f.h = fa.id; f.w = mo.id; p.famc = f.id; fams.push(f); here.push(f); next.push(fa, mo);
+      });
+      gen = next;
+    }
+    var out = ['0 HEAD', '1 CHAR UTF-8', '1 GEDC', '2 VERS 5.5.1'];
+    people.forEach(function (p) {
+      out.push('0 ' + p.id + ' INDI', '1 NAME ' + p.given + ' /' + p.sur + '/', '1 SEX ' + p.sex, '1 BIRT', '2 DATE ' + p.birth);
+      if (p.famc) out.push('1 FAMC ' + p.famc);
+    });
+    fams.forEach(function (f) {
+      out.push('0 ' + f.id + ' FAM', '1 HUSB ' + f.h, '1 WIFE ' + f.w);
+      f.kids.forEach(function (c) { out.push('1 CHIL ' + c); });
+    });
+    out.push('0 TRLR');
+    return out.join('\n');
+  }
+  function personLabel(p) { return p.name + (p.birth ? ' (b. ' + p.birth + ')' : ''); }
+  function fillPicker(rootId) {
+    var ids = Object.keys(TREE.P), by = {}, html = '', used = {}, shown = ids.slice(0, 4000);
+    if (shown.indexOf(rootId) < 0) shown.push(rootId);
+    shown.forEach(function (id) {
+      var l = personLabel(TREE.P[id]); if (used[l]) l += ' ' + id;
+      used[l] = 1; by[l] = id; html += '<option value="' + esc(l) + '"></option>';
+    });
+    TREE.by = by; $('people').innerHTML = html;
+  }
+  function setRoot(id, applyGap) {
+    FILE = buildFile(TREE.P, TREE.F, id, TREE.title);
+    var p = TREE.P[id];
+    if (applyGap && FILE.gap) { S.gen = clamp(FILE.gap, 20, 35); genEl.value = S.gen; }
+    if (p.birth && p.birth >= 1000 && p.birth <= 2026) { S.birth = p.birth; birthEl.value = p.birth; }
+    syncRange();
+    if (FILE.depth >= 1) { S.target = clamp(yearAt(FILE.depth), 1, Math.max(2, S.birth - 20)); targetEl.value = Math.round(S.target); }
+    $('rootpick').value = personLabel(p);
+    $('treeHint').textContent = HINT;
+    stopPlay(); render();
+  }
+  function loadTree(text, title) {
+    var g = parseGedcom(text);
+    if (!Object.keys(g.P).length) { $('treeHint').textContent = 'No people were found in that file. This page reads GEDCOM files (.ged).'; return; }
+    TREE = { P: g.P, F: g.F, title: title };
+    var root = pickRoot(g.P, g.F);
+    fillPicker(root);
+    setRoot(root, true);
+  }
+  function fileStory(n) {
+    if (!FILE) return '';
+    if (FILE.depth === 0) return ' No parents are linked to ' + esc(FILE.rootName) + ' in your file yet.';
+    var pg = FILE.perGen[n];
+    if (pg) return ' In your file, that generation holds <b>' + fmt(pg.known) + '</b> of the ' + fmt(slots(n)) + ' places' + (pg.distinct < pg.known ? ' (' + fmt(pg.distinct) + ' different people)' : '') + '.';
+    return ' Your file stops at generation ' + FILE.depth + ' (about ' + yearAt(FILE.depth) + '), so this far back is still undiscovered in your records.';
+  }
+  function updateTreeUI() {
+    var on = !!FILE;
+    $('treeDetail').hidden = !on; $('clearTree').hidden = !on; $('legFile').hidden = !on; $('treeSummary').hidden = !on;
+    $('tbl').className = on ? '' : 'nofile';
+    $('treeStatus').textContent = on ? FILE.title : '';
+    if (!on) { $('treeHint').textContent = HINT; return; }
+    $('treeSummary').innerHTML = FILE.depth === 0
+      ? 'No parents are linked to <b>' + esc(FILE.rootName) + '</b> in this file, so there is no tree to draw. Try another starting person.'
+      : '<b>' + esc(FILE.rootName) + '</b>' + (FILE.rootBirth ? ' (b. ' + FILE.rootBirth + ')' : '') + ' goes back ' + FILE.depth + ' generations in your file and names ' + FILE.allCount.toLocaleString('en-US') + ' ancestors' +
+        (FILE.dupCount ? '. ' + FILE.dupCount + ' of them fill more than one place, which is pedigree collapse in your real records' : '') +
+        '. The file has ' + FILE.nPeople.toLocaleString('en-US') + ' people; average generation ' + (FILE.gap ? FILE.gap + ' years' : 'unknown') + '.';
+  }
+
+  /* ---------- State targets and easing ---------- */
+  var tgt = { n: 1, lT: 0, lD: 0 }, view = { n: 0, lT: 0, lD: 0 };
+  function computeTargets() {
+    var n = nGens(), T = slots(n), D = distinct(T, poolAt(yearAt(n)));
+    tgt.n = n; tgt.lT = Math.log10(T); tgt.lD = Math.log10(D);
+  }
+  var playing = false, raf = 0, last = 0, PLAY_SPEED = 140;
+  var hovFan = null, geom = null;
+
+  function settled() {
+    return Math.abs(view.n - tgt.n) < 0.003 && Math.abs(view.lT - tgt.lT) < 0.003 && Math.abs(view.lD - tgt.lD) < 0.003;
+  }
+  function frame(ts) {
+    var dt = Math.min(0.05, (ts - last) / 1000 || 0.016); last = ts;
+    if (playing) {
+      S.target = Math.max(1, S.target - PLAY_SPEED * dt);
+      targetEl.value = Math.round(S.target);
+      if (S.target <= 1) { stopPlay(); }
+      render(true);
+    }
+    var k = reduce ? 1 : 1 - Math.exp(-dt * 8);
+    view.n += (tgt.n - view.n) * k; view.lT += (tgt.lT - view.lT) * k; view.lD += (tgt.lD - view.lD) * k;
+    if (settled()) { view.n = tgt.n; view.lT = tgt.lT; view.lD = tgt.lD; }
+    drawFan(); updateFigs();
+    raf = (playing || !settled()) ? requestAnimationFrame(frame) : 0;
+  }
+  function kick() { if (!raf) { last = performance.now(); raf = requestAnimationFrame(frame); } }
+
+  function updateFigs() {
+    $('figGen').textContent = Math.round(view.n);
+    $('figSlots').textContent = fmt(Math.pow(10, view.lT));
+    $('figUnique').textContent = fmt(Math.pow(10, view.lD));
+  }
+
+  /* ---------- Fan ---------- */
+  function drawFan() {
+    var c = $('fan'), box = c.getBoundingClientRect();
+    var size = Math.max(220, box.width);
+    var ctx = setupCanvas(c, size, size);
+    var bg = cssv('--panel'), fg = cssv('--fg'), pat = cssv('--pat'), mat = cssv('--mat'), muted = cssv('--muted'), warm = cssv('--warm');
+    ctx.clearRect(0, 0, size, size);
+    var n = nGens(), shown = Math.min(view.n, 8), maxRing = Math.ceil(shown - 1e-6);
+    var cx = size / 2, cy = size / 2, R = size / 2 - 6, r0 = R * 0.13;
+    var L = clamp(shown, 3, 8), w = (R - r0) / L;
+    geom = { cx: cx, cy: cy, r0: r0, w: w, rings: Math.min(n, 8), size: size };
+    for (var k = 1; k <= maxRing; k++) {
+      var f = clamp(shown - (k - 1), 0, 1);
+      var segs = Math.pow(2, k), rIn = r0 + (k - 1) * w, rOut = rIn + w * (0.6 + 0.4 * f);
+      var base = Math.max(0.28, 1 - (k - 1) * 0.095) * f;
+      for (var i = 0; i < segs; i++) {
+        var a0 = -Math.PI / 2 + i * 2 * Math.PI / segs, a1 = -Math.PI / 2 + (i + 1) * 2 * Math.PI / segs;
+        var hov = hovFan && hovFan.k === k && hovFan.i === i;
+        var pid = FILE ? FILE.slots[k][i] : null, ghost = !!FILE && !pid, dupe = !!pid && FILE.dup[pid] > 1;
+        ctx.beginPath(); ctx.arc(cx, cy, rOut, a0, a1); ctx.arc(cx, cy, rIn, a1, a0, true); ctx.closePath();
+        ctx.globalAlpha = hov ? (ghost ? 0.35 : 1) : (ghost ? 0.1 * f : base * (0.82 + 0.18 * hash(i, k)));
+        ctx.fillStyle = i < segs / 2 ? pat : mat; ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.lineWidth = hov ? 2 : (dupe ? 1.8 : (k > 6 ? 0.5 : 1.2)); ctx.strokeStyle = hov ? fg : (dupe ? warm : bg); ctx.stroke();
+      }
+    }
+    if (n > 8 && shown >= 7.9) {
+      ctx.setLineDash([3, 4]); ctx.strokeStyle = muted; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(cx, cy, R + 3, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    }
+    ctx.beginPath(); ctx.arc(cx, cy, r0 - 2, 0, Math.PI * 2); ctx.fillStyle = fg; ctx.fill();
+    ctx.fillStyle = bg; ctx.font = '600 ' + Math.max(10, r0 * 0.38) + 'px ' + cssv('--font-body'); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('You', cx, cy);
+    ctx.font = '500 10px ' + cssv('--font-mono');
+    for (var j = 1; j <= maxRing; j++) {
+      if (clamp(shown - (j - 1), 0, 1) < 0.7) continue;
+      var ry = cy - (r0 + (j - 0.5) * w), label = String(yearAt(j));
+      ctx.lineWidth = 3; ctx.strokeStyle = bg; ctx.strokeText(label, cx, ry);
+      ctx.fillStyle = fg; ctx.fillText(label, cx, ry);
+    }
+    $('fanNote').textContent = n > 8 ? 'Showing 8 of ' + n + ' generations (' + fmt(slots(8)) + ' places)' : 'All ' + n + ' generations shown';
+  }
+  function fanHit(ev) {
+    if (!geom) return null;
+    var r = $('fan').getBoundingClientRect(), s = geom.size / r.width;
+    var x = (ev.clientX - r.left) * s - geom.cx, y = (ev.clientY - r.top) * s - geom.cy;
+    var rad = Math.sqrt(x * x + y * y);
+    if (rad < geom.r0) return { k: 0 };
+    var k = Math.floor((rad - geom.r0) / geom.w) + 1;
+    if (k < 1 || k > geom.rings || k > Math.ceil(view.n)) return null;
+    var ang = Math.atan2(y, x) + Math.PI / 2; if (ang < 0) ang += Math.PI * 2;
+    var segs = Math.pow(2, k);
+    return { k: k, i: Math.min(segs - 1, Math.floor(ang / (Math.PI * 2) * segs)) };
+  }
+
+  /* ---------- Chart ---------- */
+  var cg = null, hovYear = null;
+  function drawChart() {
+    var c = $('chart'), box = c.getBoundingClientRect();
+    var W = Math.max(280, box.width), H = box.height;
+    var ctx = setupCanvas(c, W, H);
+    var fg = cssv('--fg'), muted = cssv('--muted'), line = cssv('--line'), warm = cssv('--warm'), acc = cssv('--accent'), panel = cssv('--panel');
+    var mono = cssv('--font-mono');
+    var padL = 44, padR = 14, padT = 12, padB = 28;
+    var x0 = padL, x1 = W - padR, y0 = H - padB, y1 = padT;
+    var yMax = S.birth;
+    var xr = function (y) { return x0 + (y - 1) / (yMax - 1) * (x1 - x0); };
+    var LMAX = 13;
+    var yv = function (v) { var l = Math.min(LMAX, Math.max(0, Math.log10(Math.max(v, 1)))); return y0 - l / LMAX * (y0 - y1); };
+    cg = { x0: x0, x1: x1, yMax: yMax, W: W };
+    ctx.clearRect(0, 0, W, H);
+    ctx.font = '11px ' + mono; ctx.fillStyle = muted; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    for (var p = 0; p <= LMAX; p += 3) {
+      var gy = yv(Math.pow(10, p));
+      ctx.strokeStyle = line; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x0, gy); ctx.lineTo(x1, gy); ctx.stroke();
+      ctx.fillText(p === 0 ? '1' : fmtShort(Math.pow(10, p)), x0 - 6, gy);
+    }
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    var step = yMax > 1500 ? 500 : 250;
+    for (var yr = 0; yr <= yMax; yr += step) {
+      var xx = xr(Math.max(1, yr));
+      ctx.strokeStyle = line; ctx.beginPath(); ctx.moveTo(xx, y0); ctx.lineTo(xx, y0 + 4); ctx.stroke();
+      ctx.fillStyle = muted; ctx.fillText(String(Math.max(1, yr)), xx, y0 + 7);
+    }
+    var T = function (y) { return Math.pow(2, Math.max(0, (S.birth - y) / S.gen)); };
+    var N = function (y) { return poolAt(y); };
+    var D = function (y) { return distinct(T(y), N(y)); };
+    function series(fn, color, width, dash) {
+      ctx.beginPath(); ctx.lineWidth = width; ctx.strokeStyle = color; ctx.setLineDash(dash || []);
+      for (var i = 0; i <= 240; i++) {
+        var y = 1 + (yMax - 1) * i / 240, px = xr(y), py = yv(fn(y));
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.stroke(); ctx.setLineDash([]);
+    }
+    ctx.save(); ctx.beginPath(); ctx.rect(x0, y1 - 2, x1 - x0, y0 - y1 + 4); ctx.clip();
+    series(T, warm, 2.5); series(N, muted, 1.8, [5, 4]); series(D, acc, 3);
+    ctx.restore();
+    if (FILE) {
+      var mc = cssv('--mat'), pts = [];
+      for (var gk = 1; gk < FILE.perGen.length; gk++) { var gyr = yearAt(gk); if (gyr >= 1) pts.push([xr(gyr), yv(FILE.perGen[gk].distinct)]); }
+      ctx.strokeStyle = mc; ctx.lineWidth = 1.5; ctx.beginPath();
+      pts.forEach(function (q, ix) { if (ix) ctx.lineTo(q[0], q[1]); else ctx.moveTo(q[0], q[1]); });
+      ctx.stroke();
+      pts.forEach(function (q) {
+        ctx.beginPath(); ctx.arc(q[0], q[1], 3.5, 0, Math.PI * 2); ctx.fillStyle = mc; ctx.fill();
+        ctx.lineWidth = 2; ctx.strokeStyle = panel; ctx.stroke();
+      });
+    }
+    function marker(year, dashed) {
+      var sx = xr(year);
+      ctx.strokeStyle = fg; ctx.lineWidth = 1; ctx.globalAlpha = dashed ? 0.45 : 1; ctx.setLineDash([2, 3]);
+      ctx.beginPath(); ctx.moveTo(sx, y1); ctx.lineTo(sx, y0); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+      [[T, warm], [D, acc]].forEach(function (s) {
+        ctx.beginPath(); ctx.arc(sx, yv(s[0](year)), dashed ? 3.5 : 4.5, 0, Math.PI * 2); ctx.fillStyle = s[1]; ctx.fill();
+        ctx.lineWidth = 2; ctx.strokeStyle = panel; ctx.stroke();
+      });
+    }
+    marker(S.target, false);
+    if (hovYear !== null) marker(hovYear, true);
+  }
+  function chartYear(ev) {
+    var r = $('chart').getBoundingClientRect();
+    if (!cg) return null;
+    var px = ev.clientX - r.left;
+    return clamp(Math.round(1 + (px - cg.x0) / (cg.x1 - cg.x0) * (cg.yMax - 1)), 1, cg.yMax);
+  }
+
+  /* ---------- Tooltip ---------- */
+  function showTip(html, ev) {
+    tip.innerHTML = html; tip.hidden = false;
+    var w = tip.offsetWidth, h = tip.offsetHeight, x = ev.clientX + 16, y = ev.clientY + 16;
+    if (x + w > window.innerWidth - 8) x = ev.clientX - w - 16;
+    if (y + h > window.innerHeight - 8) y = ev.clientY - h - 16;
+    tip.style.left = Math.max(8, x) + 'px'; tip.style.top = Math.max(8, y) + 'px';
+  }
+  function hideTip() { tip.hidden = true; }
+
+  function fanTip(h) {
+    if (!FILE) return fanTipModel(h);
+    if (h.k === 0) {
+      var r = TREE.P[FILE.rootId];
+      return '<div class="t">' + esc(r.name) + '</div><div class="m">' + (r.birth ? 'Born ' + r.birth + '. ' : '') + 'Starting person. Each ring outward is one generation further back.</div>';
+    }
+    var id = FILE.slots[h.k][h.i], yr = yearAt(h.k);
+    if (!id) return '<div class="t">' + relName(h.k, h.i) + '</div><div>' + pathName(h.k, h.i) + '</div><hr><div class="m">Nobody recorded here yet. Generation ' + h.k + ', about ' + yr + '.</div>';
+    var p = TREE.P[id], c = FILE.dup[id] || 1;
+    return '<div class="t">' + esc(p.name) + '</div><div>' + relName(h.k, h.i) + (p.birth ? ', born ' + p.birth : '') + '</div><div class="m">' + pathName(h.k, h.i) + '</div>' +
+      (c > 1 ? '<hr><div class="m"><b>Appears ' + c + ' times</b> in your first 8 generations. Shared ancestors like this are pedigree collapse.</div>' : '');
+  }
+  function fanTipModel(h) {
+    if (h.k === 0) return '<div class="t">You</div><div class="m">Born ' + S.birth + '. Every ring outward is one generation further back.</div>';
+    var yr = yearAt(h.k), side = (h.i >> (h.k - 1)) & 1 ? "mother's" : "father's";
+    return '<div class="t">' + relName(h.k, h.i) + '</div>' +
+      '<div>' + pathName(h.k, h.i) + '</div>' +
+      '<hr><div class="m">Generation ' + h.k + ', about ' + yr + '. One of ' + fmt(slots(h.k)) + ' places on your ' + side + ' side and beyond, drawn from about ' + fmt(poolAt(yr)) + ' people in your pool.</div>';
+  }
+  function chartTip(year) {
+    var g = (S.birth - year) / S.gen, T = Math.pow(2, Math.max(0, g)), pool = poolAt(year), D = distinct(T, pool);
+    var gr = Math.round(g), pgk = FILE && gr >= 1 ? FILE.perGen[gr] : null;
+    var fileRow = FILE && gr >= 1 ? '<div class="rw"><span>In your file (gen ' + gr + ')</span><span>' + (pgk ? fmtShort(pgk.distinct) + ' people' : 'none') + '</span></div>' : '';
+    var rows = REG.map(function (r, idx) {
+      var on = S.on[r.id];
+      return '<div class="rw" style="opacity:' + (on ? 1 : 0.45) + '"><span><i class="sw" style="background:var(--r' + idx + ')"></i>' + r.name + '</span><span>' + fmtPop(popOf(r, year)) + '</span></div>';
+    }).join('');
+    return '<div class="t">Year ' + year + '</div>' +
+      '<div class="m">' + g.toFixed(1) + ' generations back</div>' +
+      '<div class="rw"><span>Places in tree</span><span>' + fmtShort(T) + '</span></div>' +
+      '<div class="rw"><span>People in pool</span><span>' + fmtShort(pool) + '</span></div>' +
+      '<div class="rw"><span><b>Different ancestors</b></span><span><b>' + fmtShort(D) + '</b></span></div>' + fileRow +
+      '<hr><div class="m">People alive that year</div>' + rows +
+      '<div class="rw"><span><b>World</b></span><span><b>' + fmtPop(worldAt(year)) + '</b></span></div>';
+  }
+
+  /* ---------- Readout, regions, table ---------- */
+  var chipsBuilt = false, tableKey = '';
+  function buildChips() {
+    $('chips').innerHTML = REG.map(function (r, idx) {
+      return '<label class="chip"><input type="checkbox" value="' + r.id + '" checked><span><i class="dot" style="background:var(--r' + idx + ')"></i><b>' + r.name + '</b><em id="pop_' + r.id + '"></em></span></label>';
+    }).join('');
+    Array.prototype.forEach.call(document.querySelectorAll('#chips input'), function (el) {
+      el.addEventListener('change', function () {
+        S.on[el.value] = el.checked ? 1 : 0;
+        if (!REG.some(function (r) { return S.on[r.id]; })) { S.on[el.value] = 1; el.checked = true; }
+        render();
+      });
+    });
+    $('regionbar').innerHTML = REG.map(function (r, idx) { return '<i id="rb_' + r.id + '" style="background:var(--r' + idx + ')"></i>'; }).join('');
+    chipsBuilt = true;
+  }
+  function updateRegions() {
+    var y = yearAt(nGens()), ty = Math.round(S.target), world = worldAt(ty);
+    REG.forEach(function (r) {
+      var p = popOf(r, ty);
+      $('pop_' + r.id).textContent = fmtPop(p);
+      var seg = $('rb_' + r.id); seg.style.width = (p / world * 100).toFixed(2) + '%'; seg.style.opacity = S.on[r.id] ? 1 : 0.22;
+      seg.title = r.name + ': ' + fmtPop(p) + ' (' + Math.round(p / world * 100) + '% of the world)';
+    });
+    $('worldVal').textContent = 'World ' + fmtPop(world);
+  }
+  function buildTable() {
+    var key = [S.birth, S.gen, S.reach, REG.map(function (r) { return S.on[r.id]; }).join(''), FILE ? FILE.rootId : ''].join('|') + '|' + nGens();
+    if (key === tableKey) return false;
+    tableKey = key;
+    var n = nGens(), html = '', maxRows = Math.min(n, 120);
+    for (var k = 1; k <= maxRows; k++) {
+      var yk = yearAt(k), Tk = slots(k), Dk = distinct(Tk, poolAt(yk)), u = Dk / Tk * 100;
+      var pg = FILE ? FILE.perGen[k] : null;
+      var cf = FILE ? (pg ? fmtShort(pg.known) + ' / ' + fmtShort(Tk) + (pg.distinct < pg.known ? ' (' + fmtShort(pg.distinct) + ' people)' : '') : '0 / ' + fmtShort(Tk)) : '';
+      html += '<tr data-k="' + k + '"><td>' + k + '</td><td>' + yk + '</td><td>' + fmt(Tk) + '</td><td>' + fmt(Dk) + '</td><td><span class="bar"><b style="width:' + u.toFixed(1) + '%"></b></span>' + (u >= 99.5 ? '100' : u < 0.1 ? '<0.1' : u.toFixed(u < 10 ? 1 : 0)) + '%</td><td class="cf">' + cf + '</td></tr>';
+    }
+    $('rows').innerHTML = html;
+    return true;
+  }
+  var lastSelK = -1;
+  function markRow() {
+    var n = nGens();
+    if (n === lastSelK) return;
+    lastSelK = n;
+    var prev = document.querySelector('#rows tr.sel'); if (prev) prev.classList.remove('sel');
+    var sel = document.querySelector('#rows tr[data-k="' + n + '"]'), led = document.querySelector('.ledger');
+    if (sel) { sel.classList.add('sel'); if (led) led.scrollTop = Math.max(0, sel.offsetTop - led.clientHeight / 2); }
+  }
+
+  function render(fromPlay) {
+    if (!chipsBuilt) buildChips();
+    S.target = clamp(S.target, 1, Math.max(2, S.birth - 20));
+    var n = nGens(), y = yearAt(n), T = slots(n), pool = poolAt(y), D = distinct(T, pool);
+    computeTargets();
+    $('targetVal').textContent = Math.round(S.target);
+    $('genVal').textContent = S.gen + ' yrs';
+    var where = selectedNames();
+    var storyHtml = D >= T * 0.98
+      ? 'Around <b>' + y + '</b> your tree has <b>' + fmt(T) + '</b> places, and there were enough people alive in ' + where + ' (about ' + fmt(pool) + ' in your pool) for nearly every place to be a different person.'
+      : 'Around <b>' + y + '</b> your tree has <b>' + fmt(T) + '</b> places, but only about ' + fmt(pool) + ' people were alive in your pool across ' + where + '. Many places must be the same person showing up more than once, so you likely descend from about <b>' + fmt(D) + '</b> different people. This overlap is called pedigree collapse.';
+    storyHtml += fileStory(n);
+    $('story').innerHTML = storyHtml;
+    updateTreeUI();
+    updateRegions();
+    buildTable(); markRow();
+    drawChart();
+    if (!fromPlay) kick();
+  }
+
+  function stopPlay() { playing = false; $('play').textContent = 'Travel back'; }
+  function syncRange() {
+    var maxT = Math.max(2, S.birth - 20);
+    targetEl.max = maxT; S.target = clamp(S.target, 1, maxT); targetEl.value = Math.round(S.target);
+  }
+
+  birthEl.addEventListener('input', function () {
+    var v = parseInt(birthEl.value, 10);
+    if (!isFinite(v) || v < 1000 || v > 2026) return;
+    S.birth = v; syncRange(); render();
+  });
+  targetEl.addEventListener('input', function () { stopPlay(); S.target = parseInt(targetEl.value, 10); render(); });
+  genEl.addEventListener('input', function () { S.gen = parseInt(genEl.value, 10); render(); });
+  Array.prototype.forEach.call(document.querySelectorAll('input[name="mix"]'), function (r) {
+    r.addEventListener('change', function () { S.reach = parseFloat(r.value); render(); });
+  });
+  $('play').addEventListener('click', function () {
+    if (playing) { stopPlay(); return; }
+    if (S.target <= 2) S.target = Math.max(2, S.birth - 20);
+    playing = true; $('play').textContent = 'Pause'; kick();
+  });
+
+  $('fan').addEventListener('pointermove', function (ev) {
+    var h = fanHit(ev);
+    var ch = (h && h.k > 0) ? (!hovFan || hovFan.k !== h.k || hovFan.i !== h.i) : (hovFan !== null);
+    hovFan = (h && h.k > 0) ? h : null;
+    if (ch) drawFan();
+    if (h) showTip(fanTip(h), ev); else hideTip();
+  });
+  $('fan').addEventListener('pointerleave', function () { if (hovFan) { hovFan = null; drawFan(); } hideTip(); });
+
+  var dragging = false;
+  function chartMove(ev) {
+    var yr = chartYear(ev); if (yr === null) return;
+    hovYear = yr;
+    if (dragging) { stopPlay(); S.target = clamp(yr, 1, Math.max(2, S.birth - 20)); targetEl.value = Math.round(S.target); render(); }
+    else drawChart();
+    showTip(chartTip(yr), ev);
+  }
+  $('chart').addEventListener('pointerdown', function (ev) { dragging = true; try { $('chart').setPointerCapture(ev.pointerId); } catch (e) {} chartMove(ev); });
+  $('chart').addEventListener('pointermove', chartMove);
+  $('chart').addEventListener('pointerup', function () { dragging = false; });
+  $('chart').addEventListener('pointercancel', function () { dragging = false; });
+  $('chart').addEventListener('pointerleave', function () { if (dragging) return; hovYear = null; drawChart(); hideTip(); });
+
+  $('rows').addEventListener('click', function (ev) {
+    var tr = ev.target.closest('tr[data-k]'); if (!tr) return;
+    stopPlay(); S.target = clamp(yearAt(parseInt(tr.getAttribute('data-k'), 10)), 1, Math.max(2, S.birth - 20));
+    targetEl.value = Math.round(S.target); render();
+  });
+
+  $('gedfile').addEventListener('change', function () {
+    var f = this.files && this.files[0]; if (!f) return;
+    var rd = new FileReader();
+    rd.onload = function () { loadTree(String(rd.result), f.name); };
+    rd.onerror = function () { $('treeHint').textContent = 'That file could not be read.'; };
+    rd.readAsText(f);
+    this.value = '';
+  });
+  $('sample').addEventListener('click', function () { loadTree(sampleGedcom(), 'Sample tree (made up)'); });
+  $('clearTree').addEventListener('click', function () { FILE = null; TREE = null; $('rootpick').value = ''; hovFan = null; render(); });
+  $('rootpick').addEventListener('change', function () {
+    if (!TREE) return;
+    var id = TREE.by[$('rootpick').value];
+    if (id) setRoot(id, false);
+  });
+
+  var redraw = function () { drawFan(); drawChart(); };
+  if (window.ResizeObserver) new ResizeObserver(redraw).observe(document.querySelector('.wrap'));
+  else window.addEventListener('resize', redraw);
+  if (window.matchMedia) {
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    (mq.addEventListener ? mq.addEventListener.bind(mq, 'change') : mq.addListener.bind(mq))(redraw);
+  }
+  new MutationObserver(redraw).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(redraw);
+
+  syncRange(); render();
+})();
+</script>
+</body>
+</html>
